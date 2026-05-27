@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String?         @unique
+  phone          String?         @unique
+  displayName    String?
+  countryCode    String          @default("GLOBAL")
+  segment        String?
+  functionArea   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  assessments    Assessment[]
+  otpChallenges  OtpChallenge[]
+  missionActions MissionAction[]
+  subscription   Subscription?
+  streak         Streak?
+  consentLogs    ConsentLog[]
+  founderEvents  FounderEvent[]
+  jobApplications JobApplication[]
+  moveAlerts      String?
+  lastAlertCheck  DateTime?
+}
+
+model OtpChallenge {
+  id        String   @id @default(cuid())
+  email     String?
+  phone     String?
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+
+  @@index([email, createdAt])
+  @@index([phone, createdAt])
+}
+
+model Assessment {
+  id              String   @id @default(cuid())
+  userId          String
+  segment         String
+  functionArea    String
+  aiAdoption      String
+  experienceYears Int
+  tenureYears     Int
+  country         String
+  riskScore       Float
+  logicQuotient   Float
+  safetyWindow    Int
+  safetyScore     Float
+  valueDrift      Int
+  rag             String
+  atomRatio       Float
+  roboticsExposure Int?
+  complacencyRatio Int?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([segment, functionArea])
+}
+
+model MissionAction {
+  id        String   @id @default(cuid())
+  userId    String
+  track     String
+  label     String
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, track, label])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  plan                 String    @default("free")
+  status               String    @default("active")
+  razorpayCustomerId   String?
+  razorpaySubscription String?
+  stripeCustomerId     String?
+  stripeSubscription   String?
+  provider             String?
+  countryCode          String?
+  currency             String?
+  currentPeriodEnd     DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventType   String
+  externalId  String?
+  plan        String?
+  countryCode String?
+  currency    String?
+  amount      Int?
+  status      String
+  payloadHash String?
+  createdAt   DateTime @default(now())
+
+  @@index([provider, eventType, createdAt])
+}
+
+model ConsentLog {
+  id           String   @id @default(cuid())
+  userId       String
+  consentType  String
+  version      String
+  countryCode  String?
+  acceptedAt   DateTime @default(now())
+  withdrawnAt  DateTime?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consentType])
+}
+
+model FounderEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  segment   String?
+  country   String?
+  functionArea String?
+  plan      String?
+  value     Int?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([segment, country])
+}
+
+model PricingPlan {
+  id          String   @id @default(cuid())
+  countryCode String
+  currency    String
+  plan        String
+  amount      Int
+  active      Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([countryCode, plan])
+}
+
+model InsightCache {
+  id            String   @id @default(cuid())
+  cacheKey      String   @unique
+  countryCode   String
+  segment       String
+  functionArea  String
+  topic         String
+  seniority     String?
+  promptVersion String
+  title         String
+  body          String
+  source        String   @default("template")
+  hits          Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([countryCode, segment, functionArea, topic])
+}
+
+model Streak {
+  userId        String   @id
+  streak        Int      @default(0)
+  longestStreak Int      @default(0)
+  lastCheckin   DateTime?
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model IntelligenceItem {
+  id           String   @id @default(cuid())
+  category     String
+  segment      String
+  functionArea String
+  title        String
+  translation  String
+  impact       String
+  source       String
+  publishedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([segment, functionArea, publishedAt])
+}
+
+model CompanySignal {
+  id        String   @id @default(cuid())
+  company   String
+  signal    String
+  severity  String   @default("watch")
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@index([company, createdAt])
+}
+
+model JobApplication {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobTitle        String
+  company         String
+  location        String?
+  salaryRange     String?
+  jobUrl          String?
+  jobDescription  String
+  source          String?
+  postedDate      String?
+  overallScore    Float?
+  grade           String?
+  cvMatch         Float?
+  roleFit         Float?
+  careerGrowth    Float?
+  aiStability     Float?
+  companyHealth   Float?
+  strategicFit    Float?
+  scoreDetails    String?
+  status          String    @default("evaluated")
+  appliedAt       DateTime?
+  interviewAt     DateTime?
+  offerAt         DateTime?
+  tailoredCvUrl   String?
+  coverLetterText String?
+  formAnswers     String?
+  notes           String?
+  followUpDate    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([grade])
+}
