@@ -1834,6 +1834,78 @@ p {
   background: var(--green-soft);
 }
 
+.prescription-panel {
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 24px;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbfa 100%);
+}
+
+.prescription-header {
+  max-width: 860px;
+}
+
+.prescription-header h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 52px);
+  line-height: 1.02;
+}
+
+.prescription-header p {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.prescription-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.prescription-grid article {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  background: #fff;
+}
+
+.prescription-grid span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: var(--teal-700);
+  background: var(--teal-50);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.prescription-grid h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.16;
+}
+
+.prescription-grid p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prescription-grid strong {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .check-list {
   list-style: none;
   padding: 0;
@@ -2112,6 +2184,7 @@ p {
   .profile-grid,
   .score-method-header,
   .score-parameter-table article,
+  .prescription-grid,
   .restricted-grid {
     grid-template-columns: 1fr;
   }
@@ -2126,6 +2199,7 @@ p {
   .mission-grid,
   .plan-grid,
   .market-alert-grid,
+  .prescription-grid,
   .form-grid,
   .journey-form-grid,
   .choice-grid,

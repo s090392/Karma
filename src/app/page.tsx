@@ -49,6 +49,13 @@ type ScoreParameter = {
   detail: string;
 };
 
+type PrescriptionCard = {
+  label: string;
+  title: string;
+  body: string;
+  action: string;
+};
+
 type Chip = {
   label: string;
   kind: "mechanical" | "logical";
@@ -1498,6 +1505,142 @@ function moveCopyForSegment(segment: Segment) {
   return copy[segment];
 }
 
+function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[] {
+  const role = roleFor(data);
+  const sharedCheck = score.rag === "RED" ? "Check your score again in 7 days." : score.rag === "AMBER" ? "Check your score again in 30 days." : "Check your score monthly.";
+  const prescriptions: Record<Segment, PrescriptionCard[]> = {
+    fresher: [
+      {
+        label: "Stop",
+        title: "Stop applying everywhere.",
+        body: "Random applications waste energy. Focus on roles that match your stream, city, projects, internships, and first-job proof.",
+        action: "Remove weak-fit openings from your list.",
+      },
+      {
+        label: "Automate",
+        title: "Use AI to improve your proof.",
+        body: "Use AI to review your resume, explain your project clearly, and practice interview answers. Do not use it to fake experience.",
+        action: "Rewrite one project into a proof story.",
+      },
+      {
+        label: "Build Proof",
+        title: "Build visible proof, not just certificates.",
+        body: "Create one small project, internship case note, dashboard, analysis, or working demo that a recruiter can understand quickly.",
+        action: "Create two proof artifacts in 30 days.",
+      },
+      {
+        label: "Move",
+        title: "Find first roles that fit your proof.",
+        body: "Use KARMA Move to compare openings and avoid jobs that are either too generic or too far from your current proof.",
+        action: "Open First-Job Search.",
+      },
+      {
+        label: "Check Again",
+        title: "Track your readiness score.",
+        body: "Your score should change as you add internships, proof, projects, and better role targets.",
+        action: sharedCheck,
+      },
+    ],
+    outsourcing: [
+      {
+        label: "Stop",
+        title: "Stop staying invisible in transaction work.",
+        body: "If your value is only volume, speed, or queue clearance, AI and workflow tools can compress that work quickly.",
+        action: "Pick one routine task to move away from.",
+      },
+      {
+        label: "Automate",
+        title: "Automate one repeatable process.",
+        body: "Use AI or workflow tools to reduce manual reporting, reconciliation, ticket triage, or follow-up effort.",
+        action: "Build one AI-assisted workflow.",
+      },
+      {
+        label: "Build Proof",
+        title: "Show control, exception, or savings impact.",
+        body: "Write proof around error reduction, turnaround time, audit quality, client escalation handling, or process improvement.",
+        action: "Create one measurable proof note.",
+      },
+      {
+        label: "Move",
+        title: "Move toward judgment-heavy roles.",
+        body: `For ${role.title.toLowerCase()}, safer paths usually involve exception handling, controls, client judgment, domain tools, or process ownership.`,
+        action: "Open KARMA Move.",
+      },
+      {
+        label: "Check Again",
+        title: "Track whether your task mix improves.",
+        body: "Your goal is to reduce routine atoms and increase judgment atoms over time.",
+        action: sharedCheck,
+      },
+    ],
+    manager: [
+      {
+        label: "Stop",
+        title: "Stop being only the coordination layer.",
+        body: "Meetings, follow-ups, approvals, and dashboards are easier to flatten than commercial, people, risk, or transformation ownership.",
+        action: "Identify one coordination task to delegate or automate.",
+      },
+      {
+        label: "Automate",
+        title: "Compress reporting and status work.",
+        body: "Use AI to prepare summaries, meeting notes, risk logs, and dashboards so your time moves toward decisions.",
+        action: "Automate one weekly reporting rhythm.",
+      },
+      {
+        label: "Build Proof",
+        title: "Build leadership proof.",
+        body: "Create evidence of margin improvement, delivery rescue, attrition reduction, risk reduction, client expansion, or transformation outcomes.",
+        action: "Write one executive proof story.",
+      },
+      {
+        label: "Move",
+        title: "Build market optionality before pressure arrives.",
+        body: "Use KARMA Move to test demand for your leadership story and identify roles that value ownership over coordination.",
+        action: "Open Manager Job Search.",
+      },
+      {
+        label: "Check Again",
+        title: "Monitor role compression risk.",
+        body: "Your score should improve as your proof shifts from coordination to outcomes.",
+        action: sharedCheck,
+      },
+    ],
+    robotics: [
+      {
+        label: "Stop",
+        title: "Stop being only manual execution.",
+        body: "Routine movement, scanning, inspection, and machine operation are more exposed as automation enters the workplace.",
+        action: "Identify one task that machines or software can absorb.",
+      },
+      {
+        label: "Automate",
+        title: "Learn the systems around automation.",
+        body: "Move closer to dashboards, WMS, sensors, safety checks, troubleshooting, maintenance coordination, or process control.",
+        action: "Learn one adjacent system or tool.",
+      },
+      {
+        label: "Build Proof",
+        title: "Show safety, uptime, or exception handling.",
+        body: "Proof of fewer incidents, faster recovery, better quality, or process improvement is stronger than proof of routine effort.",
+        action: "Create one operations impact note.",
+      },
+      {
+        label: "Move",
+        title: "Move toward supervision and troubleshooting.",
+        body: "Use KARMA Move to find roles where human judgment, safety, process ownership, and escalation handling still matter.",
+        action: "Open KARMA Move.",
+      },
+      {
+        label: "Check Again",
+        title: "Track automation-adjacent progress.",
+        body: "Your score should improve as your work moves closer to judgment, systems, and process ownership.",
+        action: sharedCheck,
+      },
+    ],
+  };
+  return prescriptions[data.segment];
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("home");
   const [assessment, setAssessment] = useState<AssessmentState>(defaultAssessment);
@@ -2755,6 +2898,7 @@ function Results({
   const role = roleFor(assessment);
   const segment = segments[assessment.segment].label.toLowerCase();
   const improvements = scoreImprovementWindows(score, assessment, liveAlerts);
+  const prescription = prescriptionFor(assessment, score);
 
   return (
     <div className="page-stack">
@@ -2796,18 +2940,28 @@ function Results({
         </p>
       </section>
 
-      <section className="panel">
-        <h2>Your next three moves</h2>
-        <Checklist
-          items={[
-            "Reduce one mechanical atom by turning it into an AI-assisted workflow.",
-            "Create one proof artifact showing judgment, savings, revenue, or risk ownership.",
-            "Speak to one person in a safer role and learn what changed in their work.",
-          ]}
-        />
+      <section className="prescription-panel">
+        <div className="prescription-header">
+          <p className="eyebrow">Career Safety Prescription</p>
+          <h2>A score is not the product. The plan is.</h2>
+          <p>
+            Karma has diagnosed the exposed parts of your work. These are the recommended next actions to reduce risk,
+            build proof, and create career options.
+          </p>
+        </div>
+        <div className="prescription-grid">
+          {prescription.map((item) => (
+            <article key={item.label}>
+              <span>{item.label}</span>
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+              <strong>{item.action}</strong>
+            </article>
+          ))}
+        </div>
         <div className="actions-row">
           <button className="primary-btn" onClick={() => setView("mission")}>
-            Build My Mission
+            Unlock My Treatment Plan
           </button>
           <button className="secondary-btn" onClick={() => setView("market")}>
             See Market Signals
