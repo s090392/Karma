@@ -55,6 +55,8 @@ type RoleContainer = {
   questions: AtomQuestion[];
 };
 
+type LearnedActivityMap = Record<string, string[]>;
+
 type MarketAlert = {
   id: string;
   date: string;
@@ -988,10 +990,26 @@ function inferActivityKind(label: string): Chip["kind"] {
   return /(decide|judgment|risk|client|customer|strategy|root|exception|design|own|negotiate|diagnos|control|improve)/.test(lower) ? "logical" : "mechanical";
 }
 
+function activityBucketId(segment: Segment, roleId: string, customRoleTitle?: string) {
+  const custom = customRoleTitle?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return `${segment}:${roleId === otherRoleId && custom ? `${otherRoleId}:${custom}` : roleId}`;
+}
+
+function customActivityResponseKey(data: AssessmentState) {
+  return `custom-activities:${activityBucketId(data.segment, data.roleId, data.responseMap["custom-role-title"])}`;
+}
+
 function customActivities(data: AssessmentState): Chip[] {
-  return (data.responseMap["custom-activities"] || "")
+  return (data.responseMap[customActivityResponseKey(data)] || "")
     .split("|")
     .map((item) => item.trim())
+    .filter(Boolean)
+    .map((label) => ({ label, kind: inferActivityKind(label) }));
+}
+
+function learnedActivitiesFor(learnedActivities: LearnedActivityMap, data: AssessmentState): Chip[] {
+  return (learnedActivities[activityBucketId(data.segment, data.roleId, data.responseMap["custom-role-title"])] ?? [])
+    .map((label) => label.trim())
     .filter(Boolean)
     .map((label) => ({ label, kind: inferActivityKind(label) }));
 }
@@ -1372,12 +1390,14 @@ export default function Home() {
   const [liveMarketAlerts, setLiveMarketAlerts] = useState<LiveMarketAlert[]>([]);
   const [marketPulseStatus, setMarketPulseStatus] = useState<"loading" | "live" | "offline">("loading");
   const [hasCompletedAssessment, setHasCompletedAssessment] = useState(false);
+  const [learnedActivities, setLearnedActivities] = useState<LearnedActivityMap>({});
   const score = useMemo(() => calculateScore(assessment, liveMarketAlerts), [assessment, liveMarketAlerts]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("karma:assessment");
     const savedPlan = window.localStorage.getItem("karma:plan") as PlanId | null;
     const savedCompletion = window.localStorage.getItem("karma:assessment-complete");
+    const savedLearnedActivities = window.localStorage.getItem("karma:learned-activities");
     if (saved) {
       try {
         setAssessment(normalizeAssessment(JSON.parse(saved)));
@@ -1387,6 +1407,13 @@ export default function Home() {
     }
     if (savedPlan) setPlan(savedPlan);
     if (savedCompletion === "true") setHasCompletedAssessment(true);
+    if (savedLearnedActivities) {
+      try {
+        setLearnedActivities(JSON.parse(savedLearnedActivities));
+      } catch {
+        setLearnedActivities({});
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -1465,12 +1492,20 @@ export default function Home() {
     if (!clean) return;
     const chip = { label: clean, kind: inferActivityKind(clean) };
     setAssessment((current) => {
-      const existing = new Set((current.responseMap["custom-activities"] || "").split("|").filter(Boolean));
+      const responseKey = customActivityResponseKey(current);
+      const bucketKey = activityBucketId(current.segment, current.roleId, current.responseMap["custom-role-title"]);
+      const existing = new Set((current.responseMap[responseKey] || "").split("|").filter(Boolean));
       existing.add(clean);
+      setLearnedActivities((currentLearned) => {
+        const learnedSet = new Set([...(currentLearned[bucketKey] ?? []), clean]);
+        const nextLearned = { ...currentLearned, [bucketKey]: [...learnedSet] };
+        window.localStorage.setItem("karma:learned-activities", JSON.stringify(nextLearned));
+        return nextLearned;
+      });
       const key = chip.kind === "mechanical" ? "mechanicalAtoms" : "logicalAtoms";
       return {
         ...current,
-        responseMap: { ...current.responseMap, "custom-activities": [...existing].join("|") },
+        responseMap: { ...current.responseMap, [responseKey]: [...existing].join("|") },
         [key]: current[key].includes(clean) ? current[key] : [...current[key], clean],
       };
     });
@@ -1543,6 +1578,7 @@ export default function Home() {
             update={update}
             updateResponse={updateResponse}
             addCustomActivity={addCustomActivity}
+            learnedActivities={learnedActivities}
             selectSegment={selectSegment}
             selectRole={selectRole}
             step={step}
@@ -2017,6 +2053,7 @@ function AssessmentWizard({
   update,
   updateResponse,
   addCustomActivity,
+  learnedActivities,
   selectSegment,
   selectRole,
   step,
@@ -2028,6 +2065,7 @@ function AssessmentWizard({
   update: <K extends keyof AssessmentState>(key: K, value: AssessmentState[K]) => void;
   updateResponse: (id: string, value: string) => void;
   addCustomActivity: (label: string) => void;
+  learnedActivities: LearnedActivityMap;
   selectSegment: (segment: Segment) => void;
   selectRole: (roleId: string) => void;
   step: number;
@@ -2039,7 +2077,7 @@ function AssessmentWizard({
   const selectedRole = roleFor(assessment);
   const roleTextSignal = interpretTaskText(assessment.responseMap["role-open-task"] ?? "");
   const [activityDraft, setActivityDraft] = useState("");
-  const selectedActivities = mergeActivityChips(roleActivities(selectedRole), customActivities(assessment));
+  const selectedActivities = mergeActivityChips(roleActivities(selectedRole), learnedActivitiesFor(learnedActivities, assessment), customActivities(assessment));
 
   function updateExperienceYears(value: number) {
     const years = Math.max(0, value);
@@ -2064,10 +2102,10 @@ function AssessmentWizard({
 
       <div className="wizard-card">
         {step === 0 && (
-          <div className="question-stack">
-            <p className="eyebrow">Context</p>
-            <h1>First, choose the world your work lives in.</h1>
-            <p>Karma starts broad, then narrows into your exact role so the assessment does not ask irrelevant questions.</p>
+            <div className="question-stack">
+            <p className="eyebrow">Start</p>
+            <h1>Tell us what kind of work you do.</h1>
+            <p>Choose your work type and closest role. Karma will only ask questions that match your situation.</p>
             <div className="journey-form-grid">
               <label className="field">
                 Display name or nickname
@@ -2094,12 +2132,12 @@ function AssessmentWizard({
             </div>
             <div className="flow-card">
               <div className="flow-card-copy">
-                <p className="eyebrow">Exact role</p>
-                <h2>{segments[assessment.segment].label}: pick the closest match.</h2>
+                <p className="eyebrow">Role</p>
+                <h2>Pick the closest role.</h2>
                 <p>{selectedRole.description}</p>
               </div>
               <label className="field">
-                Role container
+                Your role
                 <select value={assessment.roleId} onChange={(event) => selectRole(event.target.value)}>
                   {rolesFor(assessment.segment).map((role) => (
                     <option key={role.id} value={role.id}>
@@ -2122,7 +2160,7 @@ function AssessmentWizard({
               <div className="activity-preview">
                 <div>
                   <p className="eyebrow">Related activities/functions</p>
-                  <h3>Select what applies. Add anything missing.</h3>
+                  <h3>Select what you do. Add anything missing once.</h3>
                 </div>
                 <div className="activity-chip-row">
                   {selectedActivities.map((chip) => {
@@ -2148,7 +2186,7 @@ function AssessmentWizard({
                         setActivityDraft("");
                       }
                     }}
-                    placeholder="Other activity/function"
+                    placeholder="Add another activity"
                   />
                   <button
                     onClick={() => {
@@ -2156,17 +2194,9 @@ function AssessmentWizard({
                       setActivityDraft("");
                     }}
                   >
-                    Add Other
+                    Add activity
                   </button>
                 </div>
-              </div>
-              <div className="role-mini-list">
-                {rolesFor(assessment.segment).map((role) => (
-                  <span className={assessment.roleId === role.id ? "selected" : ""} key={role.id}>
-                    {role.title}
-                  </span>
-                ))}
-                <span className={assessment.roleId === otherRoleId ? "selected" : ""}>Other</span>
               </div>
             </div>
           </div>
@@ -2177,17 +2207,17 @@ function AssessmentWizard({
             <p className="eyebrow">Profile</p>
             <h1>
               {assessment.segment === "fresher"
-                ? "No work-experience trap. We ask about readiness instead."
-                : "Now we measure exposure without asking for private salary details."}
+                ? "Now tell us about your education and job readiness."
+                : "Now tell us about your work pressure. No exact salary needed."}
             </h1>
             <p>
               {assessment.segment === "fresher"
-                ? "Freshers should not be forced into company-tenure questions. Karma looks at learning proof, project exposure, and the AI pressure around entry roles."
-                : "Karma only needs broad bands and valid experience ranges. Current-company tenure can never exceed total experience."}
+                ? "For freshers, college, stream, city, internships, and placement support matter more than work experience."
+                : "Karma only needs broad bands and simple experience details. We do not need private salary numbers."}
             </p>
             <div className="journey-form-grid">
               <label className="field">
-                {assessment.segment === "fresher" ? "Expected or current local earning band" : "General local salary band"}
+                {assessment.segment === "fresher" ? "Expected salary range" : "Salary range"}
                 <select value={assessment.salaryBand} onChange={(event) => update("salaryBand", event.target.value as AssessmentState["salaryBand"])}>
                   <option value="lower">Lower local band</option>
                   <option value="middle">Middle local band</option>
@@ -2197,7 +2227,7 @@ function AssessmentWizard({
               {assessment.segment === "fresher" ? (
                 <>
                   <label className="field">
-                    Current stage
+                    What is your current stage?
                     <select value={assessment.responseMap["fresher-stage"] ?? "job-search"} onChange={(event) => updateResponse("fresher-stage", event.target.value)}>
                       <option value="student">Still studying</option>
                       <option value="final-year">Final year / recently graduated</option>
@@ -2206,7 +2236,7 @@ function AssessmentWizard({
                     </select>
                   </label>
                   <label className="field">
-                    Practical proof built so far
+                    What proof do you already have?
                     <select value={assessment.responseMap["fresher-exposure"] ?? "projects"} onChange={(event) => updateResponse("fresher-exposure", event.target.value)}>
                       <option value="none">Mostly coursework</option>
                       <option value="projects">Projects or portfolio</option>
@@ -2215,22 +2245,24 @@ function AssessmentWizard({
                     </select>
                   </label>
                   <label className="field">
-                    {assessment.roleId === "engineering-fresher" ? "Engineering stream" : "Graduation stream"}
+                    {assessment.roleId === "engineering-fresher" ? "Engineering specialization" : "Graduation specialization"}
                     <select value={assessment.responseMap["fresher-stream"] ?? ""} onChange={(event) => updateResponse("fresher-stream", event.target.value)}>
-                      <option value="">Select stream</option>
+                      <option value="">Select specialization</option>
                       <option value="computer-science">Computer Science / IT</option>
                       <option value="electronics">Electronics / E&TC</option>
                       <option value="mechanical">Mechanical</option>
                       <option value="civil">Civil</option>
+                      <option value="electrical">Electrical</option>
+                      <option value="chemical">Chemical</option>
                       <option value="commerce">Commerce / Accounting</option>
                       <option value="management">Management / MBA</option>
                       <option value="arts-science">Arts / Science</option>
-                      <option value="other">Other stream</option>
+                      <option value="other">Other specialization</option>
                     </select>
                   </label>
                   {assessment.responseMap["fresher-stream"] === "other" && (
                     <label className="field">
-                      Name your stream
+                      Name your specialization
                       <input
                         value={assessment.responseMap["fresher-stream-other"] ?? ""}
                         onChange={(event) => updateResponse("fresher-stream-other", event.target.value)}
@@ -2238,6 +2270,22 @@ function AssessmentWizard({
                       />
                     </label>
                   )}
+                  <label className="field">
+                    College name
+                    <input
+                      value={assessment.responseMap["college-name"] ?? ""}
+                      onChange={(event) => updateResponse("college-name", event.target.value)}
+                      placeholder="Example: Pune Institute of Computer Technology"
+                    />
+                  </label>
+                  <label className="field">
+                    College city
+                    <input
+                      value={assessment.responseMap["college-city"] ?? ""}
+                      onChange={(event) => updateResponse("college-city", event.target.value)}
+                      placeholder="Example: Pune"
+                    />
+                  </label>
                   <label className="field">
                     Year of passing
                     <select value={assessment.responseMap["passing-year"] ?? ""} onChange={(event) => updateResponse("passing-year", event.target.value)}>
@@ -2501,24 +2549,6 @@ function AssessmentWizard({
                   </div>
                 </section>
               ))}
-              {assessment.roleId !== otherRoleId && customActivities(assessment).length > 0 && (
-                <section className="atom-question-card">
-                  <h2>Other activities you added</h2>
-                  <div className="atom-option-grid">
-                    {customActivities(assessment).map((chip) => {
-                      const selected =
-                        chip.kind === "mechanical"
-                          ? assessment.mechanicalAtoms.includes(chip.label)
-                          : assessment.logicalAtoms.includes(chip.label);
-                      return (
-                        <button className={`${chip.kind} ${selected ? "selected" : ""}`} key={`custom-${chip.label}`} onClick={() => toggleChip(chip)}>
-                          {chip.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
               <section className="atom-question-card">
                 <h2>How predictable is your {selectedRole.title.toLowerCase()} week?</h2>
                 <label className="field">
@@ -2552,10 +2582,14 @@ function AssessmentWizard({
 
         {step === 4 && (
           <div className="question-stack">
-            <p className="eyebrow">Commitments</p>
-            <h1>How much pressure sits on your monthly income?</h1>
+            <p className="eyebrow">Money pressure</p>
+            <h1>How much of your monthly income is already committed?</h1>
+            <p>
+              Move the slider to show roughly how much goes into fixed payments like rent, EMI, school fees, insurance,
+              and regular family support.
+            </p>
             <label className="slider-card">
-              <span>Fixed commitment ratio</span>
+              <span>Monthly income already committed</span>
               <strong>{assessment.fixedCommitmentPct}%</strong>
               <input
                 type="range"
@@ -2565,7 +2599,7 @@ function AssessmentWizard({
                 onChange={(event) => update("fixedCommitmentPct", Number(event.target.value))}
               />
             </label>
-            <p className="privacy-note">Karma calculates this locally. It does not need your exact salary or bank details.</p>
+            <p className="privacy-note">Example: choose 60% if around 60 out of every 100 you earn is already committed. No exact salary or bank details needed.</p>
           </div>
         )}
 
