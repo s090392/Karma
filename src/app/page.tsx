@@ -35,6 +35,18 @@ type Score = {
   marketValueDrift: string;
   percentile: number;
   marketPressure: number;
+  scoreVersion: string;
+  scoreFingerprint: string;
+  rawRiskPoints: number;
+  parameters: ScoreParameter[];
+};
+
+type ScoreParameter = {
+  label: string;
+  value: string;
+  points: string;
+  direction: "raises-risk" | "lowers-risk" | "neutral";
+  detail: string;
 };
 
 type Chip = {
@@ -926,6 +938,7 @@ const defaultAssessment: AssessmentState = {
 };
 
 const steps = ["Track", "Profile", "AI Pressure", "Work Atoms", "Commitments"];
+const scoreMethodVersion = "Karma Dynamic Score v0.4";
 const otherRoleId = "other-role";
 
 function clamp(value: number, min = 1, max = 10) {
@@ -1274,6 +1287,61 @@ function sourceFeedPressure(alerts: LiveMarketAlert[]) {
   };
 }
 
+function formatRiskPoints(value: number) {
+  const rounded = Number(value.toFixed(2));
+  if (rounded > 0) return `+${rounded}`;
+  return `${rounded}`;
+}
+
+function directionFor(value: number): ScoreParameter["direction"] {
+  if (value > 0.03) return "raises-risk";
+  if (value < -0.03) return "lowers-risk";
+  return "neutral";
+}
+
+function scoreParameter(label: string, value: string, contribution: number, detail: string): ScoreParameter {
+  return {
+    label,
+    value,
+    points: formatRiskPoints(contribution),
+    direction: directionFor(contribution),
+    detail,
+  };
+}
+
+function stableHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function scoreFingerprintFor(data: AssessmentState, alerts: LiveMarketAlert[], market: ReturnType<typeof sourceFeedPressure>) {
+  const payload = {
+    version: scoreMethodVersion,
+    country: data.country,
+    segment: data.segment,
+    roleId: data.roleId,
+    customRole: data.responseMap["custom-role-title"] ?? "",
+    salaryBand: data.salaryBand,
+    experienceYears: data.experienceYears,
+    tenureYears: data.tenureYears,
+    aiAdoption: data.aiAdoption,
+    mechanicalAtoms: [...data.mechanicalAtoms].sort(),
+    logicalAtoms: [...data.logicalAtoms].sort(),
+    responseMap: Object.keys(data.responseMap).sort().reduce<Record<string, string>>((memo, key) => {
+      memo[key] = data.responseMap[key];
+      return memo;
+    }, {}),
+    fixedCommitmentPct: data.fixedCommitmentPct,
+    market,
+    marketItems: alerts.map((alert) => `${alert.category}:${alert.source}:${alert.title}`).sort().slice(0, 20),
+  };
+  return stableHash(JSON.stringify(payload));
+}
+
 function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): Score {
   const role = roleFor(data);
   const market = sourceFeedPressure(alerts);
@@ -1286,16 +1354,20 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
   const experienceLift = data.experienceYears < 3 ? 0.55 : data.experienceYears > 12 ? -0.15 : 0;
   const tenureDrag = data.tenureYears > 10 ? 0.55 : data.tenureYears > 6 ? 0.25 : 0;
   const answerDrag = responseRisk(data) + textSignal.risk;
+  const baseRiskPoints = ((segmentWeight[data.segment] + adoptionWeight[data.aiAdoption]) / 2) * 1.72;
+  const taskMixPoints = (atomRatio - 0.55) * 2.3;
+  const rawRiskPoints =
+    baseRiskPoints +
+    taskMixPoints +
+    salaryDrag +
+    tenureDrag +
+    experienceLift +
+    role.riskModifier +
+    answerDrag +
+    market.riskAdjustment;
   const riskScore = Number(
     clamp(
-      ((segmentWeight[data.segment] + adoptionWeight[data.aiAdoption]) / 2) * 1.72 +
-        (atomRatio - 0.55) * 2.3 +
-        salaryDrag +
-        tenureDrag +
-        experienceLift +
-        role.riskModifier +
-        answerDrag +
-        market.riskAdjustment,
+      rawRiskPoints,
     ).toFixed(1),
   );
   const logicQuotient = Number(clamp(11 - riskScore + (data.logicalAtoms.length + textSignal.logical) * 0.28).toFixed(1));
@@ -1308,6 +1380,17 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
   const rag: Rag = safetyScore >= 6.5 ? "GREEN" : safetyScore >= 3.5 ? "AMBER" : "RED";
   const driftBase = data.salaryBand === "higher" ? 92000 : data.salaryBand === "middle" ? 42000 : 18000;
   const percentile = Math.round(clamp(atomRatio * 100 + (data.segment === "manager" ? 18 : 8) + role.riskModifier * 12, 18, 96));
+  const parameters = [
+    scoreParameter("Work category and AI pressure", `${segments[data.segment].label} / ${titleCase(data.aiAdoption)}`, baseRiskPoints, "Base risk is set by the category and how visible AI adoption is around the role."),
+    scoreParameter("Task mix", `${Math.round(atomRatio * 100)}% routine/mechanical`, taskMixPoints, "More repeatable work raises risk. More judgment work lowers risk."),
+    scoreParameter("Role type", role.title, role.riskModifier, "Each role has a fixed role-risk adjustment based on how automatable the typical work is."),
+    scoreParameter("Experience stage", `${data.experienceYears} years`, experienceLift, "Very early careers need proof faster. Deep experience can reduce risk when it carries judgment."),
+    scoreParameter("Current company tenure", `${data.tenureYears} years`, tenureDrag, "Long tenure in one environment can raise risk if the market has moved faster outside."),
+    scoreParameter("Salary band", titleCase(data.salaryBand), salaryDrag, "Higher salary bands can face more scrutiny in restructuring; lower bands carry slightly less cost pressure."),
+    scoreParameter("Answers and open-text signals", `${formatRiskPoints(answerDrag)} answer points`, answerDrag, "Dropdown answers and the private task description are translated into risk signals locally."),
+    scoreParameter("Live market pressure", `${market.level}/1.2`, market.riskAdjustment, "Google News source signals can move the score when the market around the user changes."),
+    scoreParameter("Money pressure", `${data.fixedCommitmentPct}% committed`, data.fixedCommitmentPct > 65 ? 0.75 : data.fixedCommitmentPct <= 30 ? -0.15 : 0, "Money pressure does not mean job risk, but it reduces the safety margin and urgency window."),
+  ];
   return {
     safetyScore,
     riskScore,
@@ -1319,6 +1402,10 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
     marketValueDrift: `${countryFor(data.country).currency} ${Math.round(driftBase * (riskScore / 8)).toLocaleString("en-US")}/mo`,
     percentile,
     marketPressure: market.level,
+    scoreVersion: scoreMethodVersion,
+    scoreFingerprint: scoreFingerprintFor(data, alerts, market),
+    rawRiskPoints: Number(rawRiskPoints.toFixed(2)),
+    parameters,
   };
 }
 
@@ -2696,6 +2783,8 @@ function Results({
         <MetricCard label="Market Value Drift" value={score.marketValueDrift} />
       </section>
 
+      <ScoreBreakdownPanel score={score} />
+
       <ScoreImprovementPanel improvements={improvements} score={score} />
 
       <section className="panel">
@@ -2737,6 +2826,40 @@ function Results({
         </div>
       </section>
     </div>
+  );
+}
+
+function ScoreBreakdownPanel({ score }: { score: Score }) {
+  return (
+    <section className="score-method-panel">
+      <div className="score-method-header">
+        <div>
+          <p className="eyebrow">Score method</p>
+          <h2>Why this score was generated</h2>
+          <p>
+            Karma uses a deterministic scoring method. The same profile, answers, tasks, and market-source inputs will
+            generate the same score fingerprint every time.
+          </p>
+        </div>
+        <div className="score-fingerprint">
+          <span>{score.scoreVersion}</span>
+          <strong>{score.scoreFingerprint}</strong>
+          <small>Raw risk points: {score.rawRiskPoints}</small>
+        </div>
+      </div>
+      <div className="score-parameter-table">
+        {score.parameters.map((item) => (
+          <article className={item.direction} key={item.label}>
+            <div>
+              <strong>{item.label}</strong>
+              <span>{item.value}</span>
+            </div>
+            <b>{item.points}</b>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

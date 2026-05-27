@@ -1722,6 +1722,118 @@ p {
   font-size: 28px;
 }
 
+.score-method-panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  background: #fff;
+}
+
+.score-method-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.score-method-header h2 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 42px);
+  line-height: 1.05;
+}
+
+.score-method-header p {
+  margin: 8px 0 0;
+  max-width: 760px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.score-fingerprint {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 7px;
+  background: #fbfbfa;
+}
+
+.score-fingerprint span,
+.score-fingerprint small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.score-fingerprint strong {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: var(--teal-700);
+  font-size: 18px;
+}
+
+.score-parameter-table {
+  display: grid;
+  gap: 10px;
+}
+
+.score-parameter-table article {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  background: #fff;
+}
+
+.score-parameter-table article.raises-risk {
+  border-color: rgba(180, 35, 24, 0.18);
+  background: #fffafa;
+}
+
+.score-parameter-table article.lowers-risk {
+  border-color: rgba(20, 122, 61, 0.18);
+  background: #fbfffc;
+}
+
+.score-parameter-table strong {
+  display: block;
+  font-size: 15px;
+}
+
+.score-parameter-table span,
+.score-parameter-table p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.score-parameter-table p {
+  margin: 0;
+}
+
+.score-parameter-table b {
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: #f4f4f2;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  text-align: center;
+}
+
+.score-parameter-table .raises-risk b {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.score-parameter-table .lowers-risk b {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
 .check-list {
   list-style: none;
   padding: 0;
@@ -1998,6 +2110,8 @@ p {
   .improvement-grid,
   .flow-card,
   .profile-grid,
+  .score-method-header,
+  .score-parameter-table article,
   .restricted-grid {
     grid-template-columns: 1fr;
   }
