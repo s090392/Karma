@@ -1490,6 +1490,49 @@ p {
   font-weight: 850;
 }
 
+.strength-panel {
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 22px;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  background: #fbfefd;
+}
+
+.strength-panel h2 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.08;
+}
+
+.strength-panel p {
+  margin: 8px 0 0;
+  max-width: 780px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.strength-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.strength-chip-grid button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 12px;
+  color: var(--ink-soft);
+  background: #fff;
+  font-weight: 800;
+}
+
+.strength-chip-grid button.selected {
+  color: #fff;
+  border-color: var(--teal-700);
+  background: var(--teal-700);
+}
+
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -20,6 +20,7 @@ type AssessmentState = {
   aiAdoption: Adoption;
   mechanicalAtoms: string[];
   logicalAtoms: string[];
+  personalStrengths: string[];
   responseMap: Record<string, string>;
   fixedCommitmentPct: number;
 };
@@ -54,6 +55,12 @@ type PrescriptionCard = {
   title: string;
   body: string;
   action: string;
+};
+
+type StrengthSignal = {
+  points: number;
+  labels: string[];
+  detail: string;
 };
 
 type Chip = {
@@ -937,6 +944,7 @@ const defaultAssessment: AssessmentState = {
   aiAdoption: "scaling",
   mechanicalAtoms: ["Status meetings", "Approval follow-ups", "Dashboard consolidation"],
   logicalAtoms: ["Client escalation calls", "Commercial tradeoff call"],
+  personalStrengths: ["People leadership", "Client communication"],
   responseMap: {
     "manager-level": "middle",
     "role-predictability": "mixed",
@@ -947,6 +955,22 @@ const defaultAssessment: AssessmentState = {
 const steps = ["Track", "Profile", "AI Pressure", "Work Atoms", "Commitments"];
 const scoreMethodVersion = "Karma Dynamic Score v0.4";
 const otherRoleId = "other-role";
+const personalStrengthOptions = [
+  "English communication",
+  "Regional language",
+  "Foreign language",
+  "AI tools",
+  "Excel / Sheets",
+  "Coding",
+  "Data analysis",
+  "Public speaking",
+  "Sports discipline",
+  "Team leadership",
+  "Client communication",
+  "Writing",
+  "Design / creativity",
+  "Teaching / mentoring",
+];
 
 function clamp(value: number, min = 1, max = 10) {
   return Math.max(min, Math.min(max, value));
@@ -990,6 +1014,7 @@ function normalizeAssessment(raw: Partial<AssessmentState>) {
   const validRole = merged.roleId === otherRoleId || rolesFor(merged.segment).some((role) => role.id === merged.roleId);
   return {
     ...merged,
+    personalStrengths: raw.personalStrengths ?? defaultAssessment.personalStrengths,
     responseMap: { ...defaultAssessment.responseMap, ...(raw.responseMap ?? {}) },
     tenureYears: Math.min(merged.tenureYears, Math.max(merged.experienceYears, 0)),
     roleId: validRole ? merged.roleId : rolesFor(merged.segment)[0].id,
@@ -1316,6 +1341,36 @@ function scoreParameter(label: string, value: string, contribution: number, deta
   };
 }
 
+function strengthSignal(data: AssessmentState): StrengthSignal {
+  const selected = new Set(data.personalStrengths);
+  let points = 0;
+  if (selected.has("AI tools")) points -= 0.28;
+  if (selected.has("English communication")) points -= 0.16;
+  if (selected.has("Regional language")) points -= 0.08;
+  if (selected.has("Foreign language")) points -= 0.18;
+  if (selected.has("Excel / Sheets")) points -= 0.1;
+  if (selected.has("Coding")) points -= 0.16;
+  if (selected.has("Data analysis")) points -= 0.18;
+  if (selected.has("Public speaking")) points -= 0.12;
+  if (selected.has("Sports discipline")) points -= 0.1;
+  if (selected.has("Team leadership")) points -= 0.14;
+  if (selected.has("Client communication")) points -= 0.16;
+  if (selected.has("Writing")) points -= 0.08;
+  if (selected.has("Design / creativity")) points -= 0.1;
+  if (selected.has("Teaching / mentoring")) points -= 0.12;
+  if ((data.responseMap["other-strengths"] ?? "").trim()) points -= 0.08;
+  points = Math.max(-0.95, points);
+  const labels = [...selected];
+  if ((data.responseMap["other-strengths"] ?? "").trim()) labels.push(data.responseMap["other-strengths"].trim());
+  return {
+    points,
+    labels,
+    detail: selected.size
+      ? "Personal strengths create alternate ways to prove value beyond routine tasks."
+      : "No additional strengths captured yet, so Karma cannot give resilience credit here.",
+  };
+}
+
 function stableHash(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -1338,6 +1393,7 @@ function scoreFingerprintFor(data: AssessmentState, alerts: LiveMarketAlert[], m
     aiAdoption: data.aiAdoption,
     mechanicalAtoms: [...data.mechanicalAtoms].sort(),
     logicalAtoms: [...data.logicalAtoms].sort(),
+    personalStrengths: [...data.personalStrengths].sort(),
     responseMap: Object.keys(data.responseMap).sort().reduce<Record<string, string>>((memo, key) => {
       memo[key] = data.responseMap[key];
       return memo;
@@ -1361,6 +1417,7 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
   const experienceLift = data.experienceYears < 3 ? 0.55 : data.experienceYears > 12 ? -0.15 : 0;
   const tenureDrag = data.tenureYears > 10 ? 0.55 : data.tenureYears > 6 ? 0.25 : 0;
   const answerDrag = responseRisk(data) + textSignal.risk;
+  const strengths = strengthSignal(data);
   const baseRiskPoints = ((segmentWeight[data.segment] + adoptionWeight[data.aiAdoption]) / 2) * 1.72;
   const taskMixPoints = (atomRatio - 0.55) * 2.3;
   const rawRiskPoints =
@@ -1371,6 +1428,7 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
     experienceLift +
     role.riskModifier +
     answerDrag +
+    strengths.points +
     market.riskAdjustment;
   const riskScore = Number(
     clamp(
@@ -1394,6 +1452,7 @@ function calculateScore(data: AssessmentState, alerts: LiveMarketAlert[] = []): 
     scoreParameter("Experience stage", `${data.experienceYears} years`, experienceLift, "Very early careers need proof faster. Deep experience can reduce risk when it carries judgment."),
     scoreParameter("Current company tenure", `${data.tenureYears} years`, tenureDrag, "Long tenure in one environment can raise risk if the market has moved faster outside."),
     scoreParameter("Salary band", titleCase(data.salaryBand), salaryDrag, "Higher salary bands can face more scrutiny in restructuring; lower bands carry slightly less cost pressure."),
+    scoreParameter("Personal strengths", strengths.labels.length ? strengths.labels.join(", ") : "Not captured", strengths.points, strengths.detail),
     scoreParameter("Answers and open-text signals", `${formatRiskPoints(answerDrag)} answer points`, answerDrag, "Dropdown answers and the private task description are translated into risk signals locally."),
     scoreParameter("Live market pressure", `${market.level}/1.2`, market.riskAdjustment, "Google News source signals can move the score when the market around the user changes."),
     scoreParameter("Money pressure", `${data.fixedCommitmentPct}% committed`, data.fixedCommitmentPct > 65 ? 0.75 : data.fixedCommitmentPct <= 30 ? -0.15 : 0, "Money pressure does not mean job risk, but it reduces the safety margin and urgency window."),
@@ -1507,6 +1566,7 @@ function moveCopyForSegment(segment: Segment) {
 
 function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[] {
   const role = roleFor(data);
+  const strengths = data.personalStrengths.length ? data.personalStrengths.slice(0, 3).join(", ") : "your strongest transferable skills";
   const sharedCheck = score.rag === "RED" ? "Check your score again in 7 days." : score.rag === "AMBER" ? "Check your score again in 30 days." : "Check your score monthly.";
   const prescriptions: Record<Segment, PrescriptionCard[]> = {
     fresher: [
@@ -1525,7 +1585,7 @@ function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[
       {
         label: "Build Proof",
         title: "Build visible proof, not just certificates.",
-        body: "Create one small project, internship case note, dashboard, analysis, or working demo that a recruiter can understand quickly.",
+        body: `Create one small project, internship case note, dashboard, analysis, or demo that uses ${strengths} as proof.`,
         action: "Create two proof artifacts in 30 days.",
       },
       {
@@ -1557,7 +1617,7 @@ function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[
       {
         label: "Build Proof",
         title: "Show control, exception, or savings impact.",
-        body: "Write proof around error reduction, turnaround time, audit quality, client escalation handling, or process improvement.",
+        body: `Write proof around error reduction, turnaround time, audit quality, or process improvement, using ${strengths} where relevant.`,
         action: "Create one measurable proof note.",
       },
       {
@@ -1589,7 +1649,7 @@ function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[
       {
         label: "Build Proof",
         title: "Build leadership proof.",
-        body: "Create evidence of margin improvement, delivery rescue, attrition reduction, risk reduction, client expansion, or transformation outcomes.",
+        body: `Create evidence of margin improvement, delivery rescue, risk reduction, or transformation outcomes. Anchor the story in ${strengths}.`,
         action: "Write one executive proof story.",
       },
       {
@@ -1621,7 +1681,7 @@ function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[
       {
         label: "Build Proof",
         title: "Show safety, uptime, or exception handling.",
-        body: "Proof of fewer incidents, faster recovery, better quality, or process improvement is stronger than proof of routine effort.",
+        body: `Proof of fewer incidents, faster recovery, better quality, or process improvement is stronger when it uses ${strengths}.`,
         action: "Create one operations impact note.",
       },
       {
@@ -1726,6 +1786,7 @@ export default function Home() {
       responseMap: defaults.responseMap ?? {},
       mechanicalAtoms: [],
       logicalAtoms: [],
+      personalStrengths: current.personalStrengths,
     }));
   }
 
@@ -1740,6 +1801,7 @@ export default function Home() {
       },
       mechanicalAtoms: [],
       logicalAtoms: [],
+      personalStrengths: current.personalStrengths,
     }));
   }
 
@@ -1778,6 +1840,16 @@ export default function Home() {
       return {
         ...current,
         [key]: exists ? current[key].filter((item) => item !== chip.label) : [...current[key], chip.label],
+      };
+    });
+  }
+
+  function toggleStrength(label: string) {
+    setAssessment((current) => {
+      const exists = current.personalStrengths.includes(label);
+      return {
+        ...current,
+        personalStrengths: exists ? current.personalStrengths.filter((item) => item !== label) : [...current.personalStrengths, label],
       };
     });
   }
@@ -1844,6 +1916,7 @@ export default function Home() {
             step={step}
             setStep={setStep}
             toggleChip={toggleChip}
+            toggleStrength={toggleStrength}
             completeAssessment={completeAssessment}
           />
         )}
@@ -2319,6 +2392,7 @@ function AssessmentWizard({
   step,
   setStep,
   toggleChip,
+  toggleStrength,
   completeAssessment,
 }: {
   assessment: AssessmentState;
@@ -2331,6 +2405,7 @@ function AssessmentWizard({
   step: number;
   setStep: (step: number) => void;
   toggleChip: (chip: Chip) => void;
+  toggleStrength: (label: string) => void;
   completeAssessment: () => void;
 }) {
   const progress = Math.round(((step + 1) / steps.length) * 100);
@@ -2750,6 +2825,31 @@ function AssessmentWizard({
                 </label>
               </div>
             )}
+            <section className="strength-panel">
+              <div>
+                <p className="eyebrow">Personal strengths</p>
+                <h2>What else can help you stand out?</h2>
+                <p>
+                  These are not hobbies for decoration. Karma gives points when a strength can help you prove value,
+                  communicate better, learn faster, or move into safer work.
+                </p>
+              </div>
+              <div className="strength-chip-grid">
+                {personalStrengthOptions.map((item) => (
+                  <button className={assessment.personalStrengths.includes(item) ? "selected" : ""} key={item} onClick={() => toggleStrength(item)}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <label className="field">
+                Other strength, optional
+                <input
+                  value={assessment.responseMap["other-strengths"] ?? ""}
+                  onChange={(event) => updateResponse("other-strengths", event.target.value)}
+                  placeholder="Example: chess, debate, volunteering, sales, music, NCC"
+                />
+              </label>
+            </section>
           </div>
         )}
 
