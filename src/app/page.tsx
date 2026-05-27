@@ -1381,6 +1381,36 @@ function ragCopy(rag: Rag) {
   };
 }
 
+function moveCopyForSegment(segment: Segment) {
+  const copy: Record<Segment, { label: string; title: string; body: string; cta: string }> = {
+    fresher: {
+      label: "Highly relevant for freshers",
+      title: "KARMA Move helps you find your first strong role.",
+      body: "For freshers, the hardest part is knowing which openings are worth applying to. Move filters jobs, scores fit, and helps prepare applications without technical setup.",
+      cta: "Open First-Job Search",
+    },
+    manager: {
+      label: "Highly relevant for managers",
+      title: "KARMA Move helps managers build market optionality.",
+      body: "For mid and senior managers, Move is most useful for testing the external market, filtering weak roles, and preparing stronger transition stories.",
+      cta: "Open Manager Job Search",
+    },
+    outsourcing: {
+      label: "Available for BPO and outsourcing",
+      title: "KARMA Move can help you compare safer roles.",
+      body: "For outsourcing roles, Move helps you find openings where judgment, controls, customer handling, and domain skill matter more than repetitive task execution.",
+      cta: "Open KARMA Move",
+    },
+    robotics: {
+      label: "Available for robotics-exposed work",
+      title: "KARMA Move can help you move toward safer operations roles.",
+      body: "For physical automation exposure, Move helps you compare roles where safety judgment, process ownership, supervision, and troubleshooting are still valued.",
+      cta: "Open KARMA Move",
+    },
+  };
+  return copy[segment];
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("home");
   const [assessment, setAssessment] = useState<AssessmentState>(defaultAssessment);
@@ -1624,7 +1654,7 @@ function TopNav({ view, setView }: { view: View; setView: (view: View) => void }
           </button>
         ))}
         <button onClick={() => { window.location.href = "/move"; }}>
-          Move
+          KARMA Move
         </button>
       </nav>
       <button className="nav-cta" onClick={() => setView("assessment")}>
@@ -2697,17 +2727,12 @@ function Results({
       </section>
 
       <section className="panel">
-        <h2>KARMA Move</h2>
-        <p>
-          Your score is {score.rag}. KARMA Move can help you filter roles, evaluate fit, tailor documents, and manage
-          your pipeline without terminal setup.
-        </p>
+        <p className="eyebrow">{moveCopyForSegment(assessment.segment).label}</p>
+        <h2>{moveCopyForSegment(assessment.segment).title}</h2>
+        <p>{moveCopyForSegment(assessment.segment).body}</p>
         <div className="actions-row">
           <button className="primary-btn" onClick={() => { window.location.href = "/move"; }}>
-            See KARMA Move
-          </button>
-          <button className="secondary-btn" onClick={() => setView("plans")}>
-            Upgrade to Pioneer
+            {moveCopyForSegment(assessment.segment).cta}
           </button>
         </div>
       </section>
@@ -2925,10 +2950,11 @@ function Profile({
           </div>
         </div>
         <div className="panel">
+          <p className="eyebrow">{moveCopyForSegment(assessment.segment).label}</p>
           <h2>Job Search</h2>
-          <p>KARMA Move filters roles, builds a job-search pipeline, and prepares tailored application material.</p>
+          <p>{moveCopyForSegment(assessment.segment).body}</p>
           <button className="primary-btn" onClick={() => { window.location.href = "/move"; }}>
-            Open KARMA Move
+            {moveCopyForSegment(assessment.segment).cta}
           </button>
         </div>
       </section>

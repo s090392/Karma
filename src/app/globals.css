@@ -67,6 +67,61 @@
   color: var(--teal-700);
 }
 
+.move-relevance-card {
+  border: 1.5px solid #ebebeb;
+  border-radius: 14px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.7fr);
+  gap: 18px;
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(20, 20, 20, 0.05);
+}
+
+.move-relevance-card.highest {
+  border-color: rgba(15, 118, 110, 0.26);
+  background: linear-gradient(180deg, #ffffff 0%, #f4fbf9 100%);
+}
+
+.move-relevance-card p {
+  margin: 0 0 8px;
+  color: var(--teal-700);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.move-relevance-card h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.05;
+}
+
+.move-relevance-card span {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.move-relevance-card ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.move-relevance-card li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 12px;
+  color: var(--ink-soft);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 780;
+}
+
 .move-panel,
 .job-score-card,
 .kanban-column,
@@ -449,6 +504,7 @@
 @media (max-width: 900px) {
   .move-stats,
   .move-search-layout,
+  .move-relevance-card,
   .documents-grid {
     grid-template-columns: 1fr;
   }

@@ -19,10 +19,101 @@ import {
   type MoveStatus,
 } from "@/lib/move";
 
+type KarmaSegment = "outsourcing" | "fresher" | "manager" | "robotics";
+
+type KarmaAssessmentSnapshot = {
+  segment: KarmaSegment;
+  roleId?: string;
+  nickname?: string;
+};
+
+const defaultAssessmentSnapshot: KarmaAssessmentSnapshot = { segment: "manager", roleId: "delivery-manager" };
+
+function loadAssessmentSnapshot() {
+  if (typeof window === "undefined") return defaultAssessmentSnapshot;
+  try {
+    return { ...defaultAssessmentSnapshot, ...JSON.parse(window.localStorage.getItem("karma:assessment") || "{}") } as KarmaAssessmentSnapshot;
+  } catch {
+    return defaultAssessmentSnapshot;
+  }
+}
+
+function moveGuidance(segment: KarmaSegment) {
+  const guidance: Record<KarmaSegment, { label: string; title: string; body: string; setup: string; examples: string[]; priority: "highest" | "standard" }> = {
+    fresher: {
+      label: "Highest relevance: Freshers",
+      title: "Your first-job command centre",
+      body: "KARMA Move helps freshers avoid random applications. It scores openings, shows which roles fit your stream and proof, and prepares better applications.",
+      setup: "We need 5 minutes to understand your target role, city, college proof, internships, and first-job preferences.",
+      examples: ["Find realistic first roles", "Avoid weak mass-apply openings", "Prepare fresher-friendly CV proof"],
+      priority: "highest",
+    },
+    manager: {
+      label: "Highest relevance: Mid and senior managers",
+      title: "Your market optionality command centre",
+      body: "KARMA Move is especially useful for managers who need options before restructuring pressure arrives. It filters senior roles and helps shape a stronger transition story.",
+      setup: "We need 5 minutes to understand your target roles, locations, leadership proof, and companies to watch.",
+      examples: ["Test the external market", "Filter weak senior roles", "Prepare stronger leadership applications"],
+      priority: "highest",
+    },
+    outsourcing: {
+      label: "Available for BPO and outsourcing",
+      title: "Your safer-role search assistant",
+      body: "KARMA Move helps outsourcing professionals compare roles where judgment, controls, client handling, and domain skill are valued.",
+      setup: "We need 5 minutes to understand your target roles, locations, process skills, and companies to watch.",
+      examples: ["Find roles with more judgment", "Compare finance/support openings", "Prepare role-specific applications"],
+      priority: "standard",
+    },
+    robotics: {
+      label: "Available for robotics-exposed work",
+      title: "Your operations career-move assistant",
+      body: "KARMA Move helps automation-exposed workers compare roles where safety, troubleshooting, supervision, and process ownership matter.",
+      setup: "We need 5 minutes to understand your target operations roles, locations, systems, and companies to watch.",
+      examples: ["Find safer operations roles", "Compare automation exposure", "Prepare practical proof for applications"],
+      priority: "standard",
+    },
+  };
+  return guidance[segment];
+}
+
+function suggestedMoveProfile(assessment: KarmaAssessmentSnapshot): MoveProfile {
+  const base = defaultMoveProfile();
+  if (assessment.segment === "fresher") {
+    return {
+      ...base,
+      targetRoles: ["Graduate Trainee", "Junior Analyst", "Associate"],
+      locations: ["Bangalore", "Mumbai", "Remote"],
+      minSalary: "Rs 8-15L",
+      proofPoints: ["Built a college project or internship proof that can be shown to recruiters", "", ""],
+    };
+  }
+  if (assessment.segment === "manager") {
+    return {
+      ...base,
+      targetRoles: ["Program Manager", "Delivery Manager", "FP&A Manager"],
+      locations: ["Mumbai", "Bangalore", "Remote"],
+      minSalary: "Rs 25-40L",
+      proofPoints: ["Improved delivery, margin, risk, or team outcomes with measurable impact", "", ""],
+    };
+  }
+  if (assessment.segment === "robotics") {
+    return {
+      ...base,
+      targetRoles: ["Operations Supervisor", "Process Excellence Lead", "Automation Support Lead"],
+      locations: ["Pune", "Bangalore", "Hybrid"],
+      minSalary: "Rs 8-15L",
+      proofPoints: ["Reduced downtime, improved safety, or handled process exceptions in operations", "", ""],
+    };
+  }
+  return base;
+}
+
 function loadProfile() {
   if (typeof window === "undefined") return defaultMoveProfile();
   try {
-    return { ...defaultMoveProfile(), ...JSON.parse(window.localStorage.getItem(moveStorageKeys.profile) || "{}") } as MoveProfile;
+    const saved = window.localStorage.getItem(moveStorageKeys.profile);
+    const assessment = loadAssessmentSnapshot();
+    return { ...suggestedMoveProfile(assessment), ...(saved ? JSON.parse(saved) : {}) } as MoveProfile;
   } catch {
     return defaultMoveProfile();
   }
@@ -92,22 +183,35 @@ function TagInput({ label, values, placeholder, onChange }: { label: string; val
 export function MoveDashboard() {
   const [profile, setProfile] = useState<MoveProfile>(defaultMoveProfile());
   const [jobs, setJobs] = useState<MoveJob[]>([]);
+  const [assessment, setAssessment] = useState<KarmaAssessmentSnapshot>(defaultAssessmentSnapshot);
   useEffect(() => {
     setProfile(loadProfile());
     setJobs(loadPipeline());
+    setAssessment(loadAssessmentSnapshot());
   }, []);
   const evaluated = jobs.filter((job) => job.status === "evaluated" || job.evaluation);
   const applied = jobs.filter((job) => job.status === "applied");
   const interviews = jobs.filter((job) => job.status === "interview");
   const avg = evaluated.length ? evaluated.reduce((sum, job) => sum + (job.evaluation?.overallScore || 0), 0) / evaluated.length : 0;
   const conversion = evaluated.length ? Math.round((applied.length / evaluated.length) * 100) : 0;
+  const guidance = moveGuidance(assessment.segment);
 
   return (
     <main className="move-shell">
-      <MoveHeader />
+      <MoveHeader assessment={assessment} />
+      <section className={`move-relevance-card ${guidance.priority}`}>
+        <div>
+          <p>{guidance.label}</p>
+          <h2>{guidance.title}</h2>
+          <span>{guidance.body}</span>
+        </div>
+        <ul>
+          {guidance.examples.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      </section>
       {!profile.setupComplete ? (
         <section className="move-panel setup-prompt">
-          <h2>Before we start, we need 5 minutes to understand what you are looking for.</h2>
+          <h2>{guidance.setup}</h2>
           <p>The more context you give Karma about your experience and proof points, the more accurate your scores become.</p>
           <Link className="move-primary" href="/move/setup">
             Set Up My Job Search
@@ -156,12 +260,13 @@ export function MoveDashboard() {
   );
 }
 
-function MoveHeader() {
+function MoveHeader({ assessment = defaultAssessmentSnapshot }: { assessment?: KarmaAssessmentSnapshot }) {
+  const guidance = moveGuidance(assessment.segment);
   return (
     <header className="move-hero">
       <Link href="/" className="move-home-link">Karma</Link>
       <h1>KARMA Move</h1>
-      <p>Your AI-powered job search engine. Finds the right roles. Filters the wrong ones. Tailors your application for every one you choose.</p>
+      <p>{guidance.body} Available for every Karma category, with highest relevance for freshers and mid/senior managers.</p>
       <small>Intelligence adapted from career-ops by Santiago Fernandez de Valderrama (MIT licence)</small>
     </header>
   );
