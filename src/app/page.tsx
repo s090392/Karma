@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type View = "home" | "assessment" | "market" | "mission" | "plans" | "profile" | "results";
+type View = "home" | "assessment" | "market" | "grow" | "mission" | "plans" | "profile" | "results";
 type Segment = "outsourcing" | "fresher" | "manager" | "robotics";
 type Adoption = "none" | "pilot" | "scaling" | "replacing";
 type Rag = "RED" | "AMBER" | "GREEN";
@@ -55,6 +55,29 @@ type PrescriptionCard = {
   title: string;
   body: string;
   action: string;
+};
+
+type ProductivityPlay = {
+  atom: string;
+  title: string;
+  idea: string;
+  aiAssist: string;
+  nonAiAssist: string;
+  proof: string;
+  safeguard: string;
+};
+
+type PeerIdea = {
+  profile: string;
+  idea: string;
+  benefit: string;
+};
+
+type TechHeartbeat = {
+  bpm: number;
+  label: string;
+  trend: "rising" | "steady" | "cooling";
+  explanation: string;
 };
 
 type StrengthSignal = {
@@ -120,6 +143,7 @@ const navItems: { id: View; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "assessment", label: "Check Score" },
   { id: "market", label: "Market Signals" },
+  { id: "grow", label: "Grow" },
   { id: "mission", label: "Mission" },
   { id: "plans", label: "Plans" },
   { id: "profile", label: "Profile" },
@@ -1701,6 +1725,126 @@ function prescriptionFor(data: AssessmentState, score: Score): PrescriptionCard[
   return prescriptions[data.segment];
 }
 
+function productivityPlayForAtom(atom: string, data: AssessmentState): ProductivityPlay {
+  const lower = atom.toLowerCase();
+  if (/invoice|po|grn|vendor|payment|aging|reconciliation|blackline/.test(lower)) {
+    return {
+      atom,
+      title: "Turn finance exceptions into a visible control improvement.",
+      idea: "Create a tracker for blocked invoices by reason, owner, aging bucket, and next action so repeat blockers become visible.",
+      aiAssist: "Use AI only on redacted text to group issue reasons, draft vendor replies, and summarize long email chains.",
+      nonAiAssist: "Use Excel/Sheets filters, conditional formatting, and a weekly exception review with your manager.",
+      proof: "Built an exception tracker that reduced repeat follow-ups and made top blockage reasons visible to the team.",
+      safeguard: "Do not upload invoices, vendor bank details, tax IDs, customer data, or payment approvals into public AI tools.",
+    };
+  }
+  if (/ticket|customer|call|chat|crm|support|refund|complaint/.test(lower)) {
+    return {
+      atom,
+      title: "Turn repeated customer issues into a root-cause signal.",
+      idea: "Tag repeat issues by reason, customer impact, resolution path, and escalation type to show where automation or policy fixes are needed.",
+      aiAssist: "Use AI on anonymized cases to draft response templates and summarize complaint patterns.",
+      nonAiAssist: "Create a macro bank, escalation checklist, and weekly top-issue report.",
+      proof: "Created a repeat-issue tracker that improved response consistency and surfaced policy/process gaps.",
+      safeguard: "Do not paste names, phone numbers, emails, account IDs, or customer conversations into non-approved AI tools.",
+    };
+  }
+  if (/status|dashboard|meeting|approval|follow-up|deck|roadmap|raid|capacity/.test(lower)) {
+    return {
+      atom,
+      title: "Move from coordination to decision support.",
+      idea: "Convert status updates into a decision dashboard showing risks, tradeoffs, owners, due dates, and business impact.",
+      aiAssist: "Use AI to summarize meeting notes, draft risk narratives, and turn updates into decision options.",
+      nonAiAssist: "Use a simple RAID tracker and a weekly decision log.",
+      proof: "Reduced coordination noise by creating a decision log that clarified owners, risks, and next actions.",
+      safeguard: "Do not upload confidential strategy, client pricing, employee issues, or unreleased financial data into public AI tools.",
+    };
+  }
+  if (/test|bug|qa|regression|defect|script|code|api|python|sql|data/.test(lower)) {
+    return {
+      atom,
+      title: "Turn technical execution into quality intelligence.",
+      idea: "Track recurring defects, flaky areas, root causes, and release-risk patterns so your work improves the system, not just the ticket count.",
+      aiAssist: "Use AI to draft test cases, explain code paths, summarize defects, and suggest edge cases.",
+      nonAiAssist: "Build a defect taxonomy and release-risk checklist.",
+      proof: "Built a defect pattern tracker that improved release confidence and reduced repeat issues.",
+      safeguard: "Do not paste proprietary code, credentials, production logs, or customer data into unapproved AI tools.",
+    };
+  }
+  if (/pick|pack|scan|warehouse|machine|safety|inspection|routing|wms|robot|plc/.test(lower)) {
+    return {
+      atom,
+      title: "Turn manual operations into safety and uptime proof.",
+      idea: "Track exceptions, downtime reasons, safety near-misses, and recovery actions so your role moves toward supervision and troubleshooting.",
+      aiAssist: "Use AI on non-sensitive summaries to categorize downtime causes and draft shift handover notes.",
+      nonAiAssist: "Use a paper or spreadsheet exception log with daily review.",
+      proof: "Created an exception log that improved handovers, safety awareness, and recovery speed.",
+      safeguard: "Do not bypass safety rules, machine controls, supervisor approvals, or company maintenance procedures.",
+    };
+  }
+  return {
+    atom,
+    title: "Turn repeat work into measurable proof.",
+    idea: "Find the most repeated step, capture why it repeats, and create a simple tracker, template, checklist, or escalation rule.",
+    aiAssist: "Use AI on redacted examples to summarize patterns and draft reusable templates.",
+    nonAiAssist: "Use a spreadsheet, checklist, or weekly review note.",
+    proof: "Improved a repeated workflow by making bottlenecks, owners, and next actions visible.",
+    safeguard: "Validate with your manager and follow company data, compliance, and AI-use policies.",
+  };
+}
+
+function productivityPlaysFor(data: AssessmentState): ProductivityPlay[] {
+  const atoms = [...data.mechanicalAtoms, ...data.logicalAtoms].filter(Boolean);
+  const unique = [...new Set(atoms)].slice(0, 6);
+  return (unique.length ? unique : ["Routine reporting", "Follow-ups", "Exception handling"]).map((atom) => productivityPlayForAtom(atom, data));
+}
+
+function anonymousPeerIdeasFor(data: AssessmentState): PeerIdea[] {
+  const role = roleFor(data).title.toLowerCase();
+  const examples: Record<Segment, PeerIdea[]> = {
+    fresher: [
+      { profile: "Similar fresher profile", idea: "Converted a college project into a 3-slide recruiter proof deck.", benefit: "Got clearer interview conversations because the project outcome was easy to understand." },
+      { profile: "Similar engineering fresher", idea: "Built a small demo using public data and wrote what problem it solved.", benefit: "Moved from certificate-only profile to visible proof." },
+      { profile: "Similar off-campus candidate", idea: "Created a weekly application tracker and stopped applying to weak-fit roles.", benefit: "Spent less time applying and more time improving fit." },
+    ],
+    outsourcing: [
+      { profile: `Similar ${role} profile`, idea: "Created a blocked-work reason tracker and discussed top repeat blockers with the team lead.", benefit: "Became visible as someone improving the process, not only clearing volume." },
+      { profile: "Similar shared-services profile", idea: "Built a template bank for repeated queries and tracked which templates reduced back-and-forth.", benefit: "Reduced repetitive writing and created a measurable improvement story." },
+      { profile: "Similar finance operations profile", idea: "Separated routine cases from exception cases and volunteered for the exception queue.", benefit: "Moved closer to control and judgment work." },
+    ],
+    manager: [
+      { profile: "Similar middle-management profile", idea: "Replaced a status meeting with a decision log and weekly risk summary.", benefit: "Shifted perception from coordinator to owner of tradeoffs." },
+      { profile: "Similar delivery manager profile", idea: "Mapped recurring escalations by root cause and business impact.", benefit: "Created a leadership proof story around reducing avoidable escalations." },
+      { profile: "Similar senior manager profile", idea: "Built a one-page transformation narrative from existing team data.", benefit: "Made market-facing impact clearer for internal and external roles." },
+    ],
+    robotics: [
+      { profile: "Similar operations profile", idea: "Tracked downtime and exception reasons by shift and machine/process area.", benefit: "Built proof around safety, uptime, and troubleshooting." },
+      { profile: "Similar warehouse profile", idea: "Created a handover checklist for repeated routing and scanning issues.", benefit: "Reduced confusion and showed process ownership." },
+      { profile: "Similar plant operations profile", idea: "Mapped manual checks that could become supervised exception checks.", benefit: "Moved toward automation-adjacent work." },
+    ],
+  };
+  return examples[data.segment];
+}
+
+function techHeartbeatFor(data: AssessmentState, score: Score, alerts: LiveMarketAlert[]): TechHeartbeat {
+  const adoptionPulse: Record<Adoption, number> = { none: 4, pilot: 10, scaling: 18, replacing: 28 };
+  const marketPulse = Math.round(score.marketPressure * 22);
+  const personalPulse = alerts.filter((alert) => alert.lane === "personal").length * 4;
+  const bpm = Math.round(clamp(52 + adoptionPulse[data.aiAdoption] + marketPulse + personalPulse + roleFor(data).riskModifier * 12, 45, 112));
+  const trend = bpm >= 82 ? "rising" : bpm <= 62 ? "cooling" : "steady";
+  return {
+    bpm,
+    trend,
+    label: trend === "rising" ? "Pressure rising" : trend === "cooling" ? "Pressure cooling" : "Pressure steady",
+    explanation:
+      trend === "rising"
+        ? "Recent tech and market signals suggest the user should act quickly and build proof."
+        : trend === "cooling"
+          ? "Current signals are calmer, but monitoring should continue."
+          : "Signals are active but not extreme. This is a good time to improve productivity before pressure rises.",
+  };
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("home");
   const [assessment, setAssessment] = useState<AssessmentState>(defaultAssessment);
@@ -1930,6 +2074,7 @@ export default function Home() {
             marketPulseStatus={marketPulseStatus}
           />
         )}
+        {view === "grow" && <KarmaGrow assessment={assessment} score={score} liveAlerts={liveMarketAlerts} setView={setView} />}
         {view === "mission" && <Mission assessment={assessment} score={score} setView={setView} />}
         {view === "plans" && <Plans assessment={assessment} plan={plan} setPlan={setPlan} />}
         {view === "profile" && (
@@ -3078,6 +3223,211 @@ function Results({
             {moveCopyForSegment(assessment.segment).cta}
           </button>
         </div>
+      </section>
+
+      <section className="grow-teaser-panel">
+        <div>
+          <p className="eyebrow">Karma Grow</p>
+          <h2>Now turn risk into visible workplace value.</h2>
+          <p>
+            See practical productivity ideas for your exact task atoms, anonymous peer-pattern plays, and a heartbeat
+            showing whether AI and market signals are increasing pressure on your work.
+          </p>
+        </div>
+        <button className="primary-btn" onClick={() => setView("grow")}>
+          Open Karma Grow
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function KarmaGrow({
+  assessment,
+  score,
+  liveAlerts,
+  setView,
+}: {
+  assessment: AssessmentState;
+  score: Score;
+  liveAlerts: LiveMarketAlert[];
+  setView: (view: View) => void;
+}) {
+  const plays = productivityPlaysFor(assessment);
+  const peerIdeas = anonymousPeerIdeasFor(assessment);
+  const heartbeat = techHeartbeatFor(assessment, score, liveAlerts);
+  const role = roleFor(assessment);
+  const personalAlerts = liveAlerts.filter((alert) => alert.lane === "personal").slice(0, 3);
+  const toolkit = [
+    ["Productivity Ideas Engine", "Converts risky tasks into improvement ideas you can discuss at work."],
+    ["Atom-to-AI Tool Map", "Shows which tasks can use AI, spreadsheet automation, templates, or workflow redesign."],
+    ["Proof Artifact Generator", "Turns each improvement into a line for appraisal, CV, LinkedIn, or interviews."],
+    ["Manager Pitch Builder", "Creates a simple, respectful proposal you can take to your manager."],
+    ["Before/After Workflow Designer", "Shows how a process works today and what a safer improved version looks like."],
+    ["Mini SOP Builder", "Creates simple step-by-step operating notes for repeated work."],
+    ["Role Prompt Pack", "Gives safe prompt patterns for your role without exposing company or customer data."],
+    ["Implementation Tracker", "Tracks idea, approval, trial date, result, and proof."],
+    ["Proof Ledger", "Stores measurable outcomes such as time saved, errors reduced, quality improved, or escalations prevented."],
+    ["Survival Playbook", "Creates a role-specific 30-day plan to move from routine work to judgment work."],
+    ["Company-Safe AI Checklist", "Warns what not to paste into public tools and when to ask for approval."],
+    ["Redacted Data Helper", "Teaches the user to remove names, IDs, invoices, code secrets, and customer details before using AI."],
+    ["Impact Estimator", "Estimates whether an idea may save time, reduce risk, improve quality, or help customers."],
+    ["Skill Gap Prescription", "Connects weak atoms to practical skills, tools, and proof-building exercises."],
+    ["Internal Mobility Finder", "Suggests safer internal roles that value the user's strengths."],
+    ["External Mobility Finder", "Sends high-risk users to Karma Move with a sharper search direction."],
+    ["Weekly One Idea", "Gives one small improvement experiment per week so the plan feels doable."],
+    ["AI Idea Review", "Checks if an idea is useful, safe, measurable, and manager-friendly."],
+    ["Appraisal Booster", "Converts completed improvements into simple appraisal language."],
+    ["Promotion Readiness", "Shows which proof points are missing before asking for more responsibility."],
+  ];
+
+  return (
+    <div className="page-stack">
+      <section className="grow-hero">
+        <div>
+          <p className="eyebrow">Karma Grow</p>
+          <h1>Diagnosis is done. Now build survival proof.</h1>
+          <p>
+            Karma Grow turns your task atoms into practical productivity ideas. The goal is simple: become the person
+            who brings useful improvements to the table before the market forces the conversation.
+          </p>
+          <div className="actions-row">
+            <button className="primary-btn" onClick={() => setView("mission")}>
+              Build My Mission
+            </button>
+            <button className="secondary-btn" onClick={() => { window.location.href = "/move"; }}>
+              Open Karma Move
+            </button>
+          </div>
+        </div>
+        <div className={`heartbeat-card ${heartbeat.trend}`}>
+          <span>Tech heartbeat</span>
+          <strong>{heartbeat.bpm}</strong>
+          <em>{heartbeat.label}</em>
+          <div className="heartbeat-line" aria-hidden="true">
+            <i />
+          </div>
+          <p>{heartbeat.explanation}</p>
+        </div>
+      </section>
+
+      <section className="panel">
+        <p className="eyebrow">Role context</p>
+        <h2>{role.title}: what should I do next?</h2>
+        <p>
+          These ideas are generated from your selected tasks, role, AI adoption around you, and market signals. Treat them
+          as starting points, then validate with your manager and company policy before using any AI tool or changing a process.
+        </p>
+      </section>
+
+      <section className="grow-grid">
+        <div className="heartbeat-detail-panel">
+          <p className="eyebrow">Signals affecting you</p>
+          <h2>Why the heartbeat moved</h2>
+          <div className="signal-list">
+            <span>AI adoption near your role: {assessment.aiAdoption}</span>
+            <span>Market pressure score: {Math.round(score.marketPressure * 100)}%</span>
+            <span>Career safety score: {score.safetyScore}/10</span>
+          </div>
+        </div>
+        <div className="heartbeat-detail-panel">
+          <p className="eyebrow">Live source trail</p>
+          <h2>Latest items to watch</h2>
+          {personalAlerts.length ? (
+            <div className="grow-source-list">
+              {personalAlerts.map((alert) => (
+                <a key={alert.id} href={alert.url} target="_blank" rel="noreferrer">
+                  <strong>{alert.title}</strong>
+                  <span>{alert.source} · {alert.category}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p>No direct company signal is loaded yet. Add company details in your profile for a more personal heartbeat.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="productivity-section">
+        <div className="section-heading">
+          <p className="eyebrow">Productivity plays</p>
+          <h2>Ideas based on your actual work atoms</h2>
+          <p>
+            These are not empty motivational tips. Each idea is tied to a task you selected, with a safe AI option,
+            non-AI option, and proof statement.
+          </p>
+        </div>
+        <div className="productivity-play-grid">
+          {plays.map((play) => (
+            <article className="productivity-play-card" key={`${play.atom}-${play.title}`}>
+              <span>{play.atom}</span>
+              <h3>{play.title}</h3>
+              <p>{play.idea}</p>
+              <dl>
+                <div>
+                  <dt>AI assist</dt>
+                  <dd>{play.aiAssist}</dd>
+                </div>
+                <div>
+                  <dt>Without AI</dt>
+                  <dd>{play.nonAiAssist}</dd>
+                </div>
+                <div>
+                  <dt>Proof line</dt>
+                  <dd>{play.proof}</dd>
+                </div>
+              </dl>
+              <strong>{play.safeguard}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="peer-pattern-section">
+        <div className="section-heading">
+          <p className="eyebrow">Anonymous peer patterns</p>
+          <h2>What someone similar could do</h2>
+          <p>
+            We can show anonymous pattern ideas without revealing a person, company, salary, client, or private story.
+            Until Karma has verified aggregate outcomes, these are labelled as patterns, not guaranteed case studies.
+          </p>
+        </div>
+        <div className="peer-idea-grid">
+          {peerIdeas.map((idea) => (
+            <article key={`${idea.profile}-${idea.idea}`}>
+              <span>{idea.profile}</span>
+              <h3>{idea.idea}</h3>
+              <p>{idea.benefit}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="toolkit-section">
+        <div className="section-heading">
+          <p className="eyebrow">Founder-grade roadmap</p>
+          <h2>The treatment toolkit Karma should grow into</h2>
+          <p>
+            These modules make Karma more than a risk score. They make it a practical work-improvement and career-option system.
+          </p>
+        </div>
+        <div className="toolkit-grid">
+          {toolkit.map(([title, body]) => (
+            <article key={title}>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="disclaimer-card">
+        <strong>Important</strong>
+        <p>
+          Karma Grow is a decision-support tool, not legal, financial, audit, HR, or employer-specific advice. Users should
+          never upload confidential company, client, customer, code, credential, payment, or personal data into tools that
+          are not approved by their employer.
+        </p>
       </section>
     </div>
   );
