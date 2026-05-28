@@ -696,11 +696,46 @@ p {
   text-transform: uppercase;
 }
 
-.market-ticker strong {
+.ticker-window {
   overflow: hidden;
+  min-width: 0;
+  mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
+}
+
+.ticker-track {
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  animation: karmaTickerScroll 42s linear infinite;
+  will-change: transform;
+}
+
+.market-ticker:hover .ticker-track,
+.market-ticker:focus-visible .ticker-track {
+  animation-play-state: paused;
+}
+
+.market-ticker strong {
   white-space: nowrap;
-  text-overflow: ellipsis;
   font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.market-ticker strong::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--red);
+}
+
+.market-ticker small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .market-ticker em {
@@ -708,6 +743,23 @@ p {
   font-style: normal;
   font-size: 13px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+@keyframes karmaTickerScroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
 }
 
 .hero-section,

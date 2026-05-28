@@ -2137,6 +2137,16 @@ function HomeLanding({
   marketPulseStatus: "loading" | "live" | "offline";
 }) {
   const topAlert = liveAlerts[0];
+  const tickerItems = liveAlerts.length
+    ? liveAlerts.slice(0, 10)
+    : [
+        {
+          id: "loading-market-pulse",
+          title: marketPulseStatus === "offline" ? "Live feed unavailable. Open Market Signals to retry source updates." : "Fetching source headlines from Google News...",
+          source: marketPulseStatus === "offline" ? "Karma source monitor" : "Google News",
+          category: "Market pulse",
+        },
+      ];
 
   if (hasCompletedAssessment) {
     return (
@@ -2154,7 +2164,16 @@ function HomeLanding({
     <div className="landing-page">
       <button className="market-ticker" onClick={() => setView("market")}>
         <span>{marketPulseStatus === "live" ? "Google News live pulse" : "Google News pulse"}</span>
-        <strong>{topAlert ? `"${topAlert.title}"` : "Fetching source headlines from Google News..."}</strong>
+        <div className="ticker-window" aria-live="polite">
+          <div className="ticker-track">
+            {[...tickerItems, ...tickerItems].map((item, index) => (
+              <strong key={`${item.id}-${index}`}>
+                {item.title}
+                <small>{item.source} · {item.category}</small>
+              </strong>
+            ))}
+          </div>
+        </div>
         <em>{topAlert ? `Source: ${topAlert.source}` : marketPulseStatus === "offline" ? "Live feed unavailable" : "Loading"}</em>
       </button>
 
